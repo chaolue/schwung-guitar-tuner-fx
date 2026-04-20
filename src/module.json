@@ -1,0 +1,14 @@
+{
+    "id": "guitar-tuner",
+    "name": "Guitar Tuner",
+    "version": "0.2.0",
+    "description": "Chromatic tuner for guitar (and any other instrument). Nearest note and cents deviation on the OLED; big letter glyph on the pad grid. Uses the Move's mic or 3.5mm line-in.",
+    "author": "Schwung",
+    "hidden": false,
+    "component_type": "tool",
+    "tool_config": {
+        "interactive": true,
+        "skip_file_browser": true,
+        "overtake": true
+    }
+}

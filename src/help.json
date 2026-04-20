@@ -1,0 +1,46 @@
+{
+    "title": "Guitar Tuner",
+    "sections": [
+        {
+            "title": "Basics",
+            "lines": [
+                "A chromatic tuner that uses",
+                "the Move's built-in mic or",
+                "3.5mm line-in.",
+                "",
+                "Plug a guitar in or play an",
+                "acoustic note near the mic.",
+                "The screen shows the nearest",
+                "note and how many cents off",
+                "you are."
+            ]
+        },
+        {
+            "title": "Pads display",
+            "lines": [
+                "The pad grid lights up the",
+                "detected note as a letter",
+                "glyph, with a sharp or flat",
+                "symbol beside it for",
+                "accidentals.",
+                "",
+                "Color tells you how close",
+                "you are: green = in tune,",
+                "white = close, amber = off,",
+                "red = very off."
+            ]
+        },
+        {
+            "title": "Accidentals",
+            "lines": [
+                "Default notation is flats",
+                "(Db, Eb, Gb, Ab, Bb). To",
+                "switch to sharps, open",
+                "move.local:7700/config in a",
+                "browser and change",
+                "Accidental Notation under",
+                "the Tuner section."
+            ]
+        }
+    ]
+}
