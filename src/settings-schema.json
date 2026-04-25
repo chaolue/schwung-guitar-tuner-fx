@@ -1,0 +1,10 @@
+{
+  "id": "guitar-tuner",
+  "label": "Tuner",
+  "items": [
+    { "key": "accidental_style", "label": "Accidental Notation", "type": "enum",
+      "options": ["Flats (Db, Eb, Gb, Ab, Bb)", "Sharps (C#, D#, F#, G#, A#)"],
+      "values": ["flat", "sharp"],
+      "default": "sharp" }
+  ]
+}

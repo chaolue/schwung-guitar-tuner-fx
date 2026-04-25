@@ -59,7 +59,11 @@ const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb",
  * each pluck. ~44 ticks/sec → 66 ticks ≈ 1.5s. */
 const HOLD_FRAMES = 66;
 
-const SHADOW_CFG = "/data/UserData/schwung/shadow_config.json";
+/* Per-module config — schwung-manager writes this when the user changes
+ * settings on /modules/guitar-tuner. Module owns its defaults; we only
+ * read saved values (or fall back to the schema default below). */
+const MODULE_DIR = "/data/UserData/schwung/modules/tools/guitar-tuner";
+const MODULE_CFG = MODULE_DIR + "/config.json";
 
 /* ---------------- Letter + accidental glyphs ----------------
  *
@@ -93,8 +97,9 @@ const ACCIDENTAL_GLYPHS = {
 
 let frameCount = 0;
 
-/* Accidental notation — loaded from shadow_config.json, defaults to flat. */
-let accidentalStyle = "flat";
+/* Accidental notation — loaded from <module_dir>/config.json. Default
+ * mirrors the schema's `default` field. */
+let accidentalStyle = "sharp";
 
 /* Most-recent DSP readings (after hold-window processing). */
 let freqHz = 0;
@@ -113,12 +118,12 @@ let padColorsInit = false;
 /* ---------------- Config ---------------- */
 
 function loadConfig() {
-    if (host_file_exists(SHADOW_CFG)) {
+    if (host_file_exists(MODULE_CFG)) {
         try {
-            const cfg = JSON.parse(host_read_file(SHADOW_CFG) || "{}");
-            if (cfg.tuner_accidental_style === "sharp" ||
-                cfg.tuner_accidental_style === "flat") {
-                accidentalStyle = cfg.tuner_accidental_style;
+            const cfg = JSON.parse(host_read_file(MODULE_CFG) || "{}");
+            if (cfg.accidental_style === "sharp" ||
+                cfg.accidental_style === "flat") {
+                accidentalStyle = cfg.accidental_style;
             }
         } catch (e) { /* default stays */ }
     }

@@ -55,10 +55,11 @@ echo "Compiling guitar_tuner.c..."
 
 # Package: module.json + ui.js + help.json + dsp.so
 echo "Packaging..."
-cp src/module.json   "dist/$MODULE_ID/module.json"
-cp src/ui.js         "dist/$MODULE_ID/ui.js"
-cp src/help.json     "dist/$MODULE_ID/help.json"
-cp build/dsp.so      "dist/$MODULE_ID/dsp.so"
+cp src/module.json          "dist/$MODULE_ID/module.json"
+cp src/settings-schema.json "dist/$MODULE_ID/settings-schema.json"
+cp src/ui.js                "dist/$MODULE_ID/ui.js"
+cp src/help.json            "dist/$MODULE_ID/help.json"
+cp build/dsp.so             "dist/$MODULE_ID/dsp.so"
 chmod +x "dist/$MODULE_ID/dsp.so"
 
 # Create release tarball
