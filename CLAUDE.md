@@ -49,6 +49,12 @@ bash tests/run_tests.sh    # native: DSP tests, contract, help width, canvas
 - Analysis is analysis-only state: the 1.5 s hold lives in the DSP, and the
   reading clears after `READING_STALE_READS` reads with no `process_block`
   (idle-parked or bypassed FX), so the display never freezes.
+- **Reads are the "someone is looking" signal.** No `tuner`/`level` read for
+  `WATCH_TIMEOUT_SAMPLES` (0.5 s) and the analysis is skipped (capture and
+  the audio path keep running); a new instance starts asleep. Tests must
+  read like the editor does (`run()` does, every `UI_READ_EVERY` blocks) or
+  nothing is analysed. Schwung keeps polling the open page while its screen
+  is hidden behind Move's, so that case is NOT detected from here.
 
 ## Release
 

@@ -60,9 +60,20 @@ static int16_t osc_next(osc_t *o) {
     return (int16_t)lrint(o->amp * 32767.0 * v / norm);
 }
 
+/* The chain editor re-reads the reading about once a frame (~60/s, so every
+ * ~6 blocks) while the tuner's page is up, and the tuner only analyses while
+ * those reads keep coming. */
+#define UI_READ_EVERY 6
+
+static void ui_read(void *t) {
+    char buf[64];
+    api()->get_param(t, "tuner:effective", buf, sizeof(buf));
+}
+
 /* Run `seconds` of the oscillator (or silence, o == NULL) through the plugin,
- * the same signal in both channels. */
-static void run(void *t, osc_t *o, double seconds) {
+ * the same signal in both channels -- `watched` with the editor's reads
+ * interleaved as on the device, or with nobody looking. */
+static void run_ex(void *t, osc_t *o, double seconds, int watched) {
     int16_t buf[BLOCK * 2];
     const int blocks = (int)(seconds * SR / BLOCK + 0.5);
     for (int b = 0; b < blocks; b++) {
@@ -71,8 +82,11 @@ static void run(void *t, osc_t *o, double seconds) {
             buf[2 * i] = buf[2 * i + 1] = s;
         }
         api()->process_block(t, buf, BLOCK);
+        if (watched && b % UI_READ_EVERY == 0) ui_read(t);
     }
 }
+
+static void run(void *t, osc_t *o, double seconds) { run_ex(t, o, seconds, 1); }
 
 /* ------------------------------------------------------------ helpers */
 
@@ -252,6 +266,7 @@ static void test_tunes_while_muted(void) {
         for (int i = 0; i < BLOCK; i++) buf[2 * i] = buf[2 * i + 1] = osc_next(&o);
         api()->process_block(t, buf, BLOCK);
         for (int i = 0; i < BLOCK * 2; i++) if (buf[i] != 0) silent = 0;
+        if (b % UI_READ_EVERY == 0) ui_read(t);
     }
     CHECK(silent, "muted before the first block, yet audio leaked");
     CHECK(strncmp(get(t, "tuner"), "G3 ", 3) == 0, "muted reading \"%s\"", get(t, "tuner"));
@@ -300,6 +315,7 @@ static void test_stale_reads(void) {
     void *t = make();
     osc_t o = { 82.41, 0.4, 0.0, 3 };
     run(t, &o, 0.3);
+    run_ex(t, &o, (double)BLOCK / SR, 0);   /* end on a block, not a read */
     /* READING_STALE_READS reads may go unanswered by a block; the next
      * one clears. (Each get() below is itself a read.) */
     for (int i = 0; i < READING_STALE_READS - 1; i++) get(t, "tuner:effective");
@@ -367,6 +383,68 @@ static void test_api_edges(void) {
     api()->destroy_instance(NULL);
 }
 
+/* Nobody looking, no analysis: never read since creation, or not read for
+ * WATCH_TIMEOUT_SAMPLES. Audio still passes, and a look brings the reading
+ * back within one analysis cycle. */
+static void test_only_analyses_while_watched(void) {
+    printf("only analyses while watched\n");
+    tuner_t *t = (tuner_t *)make();
+    osc_t o = { 82.41, 0.4, 0.0, 3 };
+
+    /* Never opened: a second of playing does no pitch work at all. The YIN
+     * buffers are calloc'd, so any analysis would have written them. */
+    run_ex(t, &o, 1.0, 0);
+    int untouched = 1;
+    for (int tau = 1; tau <= TUNER_TAU_MAX; tau++) if (t->yin_diff[tau] != 0.0f) untouched = 0;
+    CHECK(untouched, "analysed with nobody looking");
+    CHECK(t->midi < 0 && t->level_db == LEVEL_FLOOR_DB, "unwatched instance has a reading");
+
+    /* The first look answers "--" and wakes it; the note follows within one
+     * cycle (a snapshot, then four slices), because capture never stopped. */
+    CHECK(strcmp(get(t, "tuner"), "--") == 0, "first look \"%s\"", get(t, "tuner"));
+    int16_t buf[BLOCK * 2];
+    int blocks = 0;
+    while (blocks < 40) {
+        for (int i = 0; i < BLOCK; i++) buf[2 * i] = buf[2 * i + 1] = osc_next(&o);
+        api()->process_block(t, buf, BLOCK);
+        blocks++;
+        if (strncmp(get(t, "tuner"), "E2 ", 3) == 0) break;
+    }
+    CHECK(blocks <= TUNER_CHUNKS + 1, "reading took %d blocks after the first look", blocks);
+    CHECK(atof(get(t, "level")) > -20.0, "level after waking: %s", get(t, "level"));
+
+    /* Kept awake by the editor's reads, for far longer than the timeout. */
+    run(t, &o, 2.0);
+    CHECK(strncmp(get(t, "tuner"), "E2 ", 3) == 0, "watched tuner fell asleep: \"%s\"", get(t, "tuner"));
+
+    /* Looked away: once the timeout passes, the analysis stops and the old
+     * reading goes, so the next look cannot show a stale note. */
+    run_ex(t, &o, 0.6, 0);
+    CHECK(t->midi < 0 && t->phase == 0 && t->level_db == LEVEL_FLOOR_DB,
+          "still holding a reading after nobody looked for 0.6 s");
+    for (int tau = 1; tau <= TUNER_TAU_MAX; tau++) t->yin_diff[tau] = -1.0f;
+    run_ex(t, &o, 0.5, 0);
+    int idle = 1;
+    for (int tau = 1; tau <= TUNER_TAU_MAX; tau++) if (t->yin_diff[tau] != -1.0f) idle = 0;
+    CHECK(idle, "kept analysing after nobody looked");
+
+    /* Just inside the timeout it is still awake. */
+    get(t, "tuner");
+    run_ex(t, &o, 0.4, 0);
+    CHECK(t->unwatched < WATCH_TIMEOUT_SAMPLES && t->midi >= 0, "asleep before the timeout");
+    api()->destroy_instance(t);
+
+    /* The audio path does not care who is looking: pass-through stays
+     * bit-exact and Mute still mutes, unwatched. (test_mute and
+     * test_passthrough_bit_exact never read the reading at all.) */
+    void *u = make();
+    int16_t ref[BLOCK * 2];
+    for (int i = 0; i < BLOCK * 2; i++) buf[i] = ref[i] = (int16_t)(i * 97);
+    api()->process_block(u, buf, BLOCK);
+    CHECK(memcmp(buf, ref, sizeof(buf)) == 0, "unwatched pass-through changed the audio");
+    api()->destroy_instance(u);
+}
+
 /* The difference function is computed in slices across blocks, with eight
  * partial sums: it must still be the textbook one. */
 static void test_difference_function(void) {
@@ -409,15 +487,20 @@ static void report_block_cost(void) {
     int16_t buf[BLOCK * 2];
     enum { BLOCKS = 4000 };
     static double cost[BLOCKS];
-    for (int b = 0; b < BLOCKS; b++) {
-        for (int i = 0; i < BLOCK; i++) buf[2 * i] = buf[2 * i + 1] = osc_next(&o);
-        const double t0 = now_us();
-        api()->process_block(t, buf, BLOCK);
-        cost[b] = now_us() - t0;
+    for (int watched = 1; watched >= 0; watched--) {
+        if (!watched) run_ex(t, &o, 0.6, 0);   /* past the timeout first */
+        for (int b = 0; b < BLOCKS; b++) {
+            for (int i = 0; i < BLOCK; i++) buf[2 * i] = buf[2 * i + 1] = osc_next(&o);
+            const double t0 = now_us();
+            api()->process_block(t, buf, BLOCK);
+            cost[b] = now_us() - t0;
+            if (watched && b % UI_READ_EVERY == 0) ui_read(t);
+        }
+        qsort(cost, BLOCKS, sizeof(cost[0]), cmp_double);
+        printf("block cost on this machine, %s: median %.1f us, p99 %.1f us\n",
+               watched ? "watched, playing" : "unwatched, playing",
+               cost[BLOCKS / 2], cost[BLOCKS * 99 / 100]);
     }
-    qsort(cost, BLOCKS, sizeof(cost[0]), cmp_double);
-    printf("block cost on this machine: median %.1f us, p99 %.1f us\n",
-           cost[BLOCKS / 2], cost[BLOCKS * 99 / 100]);
     api()->destroy_instance(t);
 }
 
@@ -464,6 +547,7 @@ int main(int argc, char **argv) {
     test_stale_reads();
     test_state();
     test_api_edges();
+    test_only_analyses_while_watched();
     test_difference_function();
     report_block_cost();
     printf("%d passed, %d failed\n", g_pass, g_fail);

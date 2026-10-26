@@ -103,6 +103,16 @@ and renderer, using readings you choose (`--tuner "A2 -12.3c 108.5Hz"`,
 - The DSP owns the 1.5 s hold, and clears the reading when the host stops
   calling `process_block` (an idle or bypassed FX), so the display never
   freezes on a stale note.
+- **It only analyses while someone is looking.** The chain editor re-reads
+  the reading every frame while the Tuner or Main page is up, and nothing
+  else asks for it, so with no read for 0.5 s the pitch detection stops
+  (including after load, until the FX is first opened). Capture into the
+  window continues (about one add per sample), so the reading is back within
+  ~12 ms of opening the page. Pass-through and Mute run either way. Measured
+  on x86: ~30 us per block while watched and playing, ~0.2 us unwatched.
+  One gap: Schwung keeps polling the page that is open even after you return
+  to Move's screen, so a tuner left open behind Move's screen keeps
+  analysing until you move to another page, component or slot.
 - The reading is one string, `tuner`, declared `live` so the chain editor
   re-reads it every frame. The DSP serves its own `chain_params` and
   `ui_hierarchy` (generated from `src/module.json` at build time), because the

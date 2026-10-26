@@ -12,6 +12,11 @@
  * finished. The tuner keeps listening while muted -- it always analyses the
  * input, never its own output.
  *
+ * It only analyses while someone is looking. The chain editor re-reads the
+ * reading every frame while a page showing it is up, and nothing else asks
+ * for it, so those reads are the signal: with none for half a second the
+ * pitch detection stops, and the next read starts it again.
+ *
  * Algorithm (unchanged from the Guitar Tuner tool): the Cumulative-Mean-
  * Normalized Difference Function at the core of YIN (de Cheveigne & Kawahara
  * 2002) over a 2048-sample window, the first dip below a threshold, then
@@ -87,6 +92,12 @@
  * at ~344/s, so in normal running this counter never exceeds 1-2. */
 #define READING_STALE_READS 24
 
+/* With no reading request for this long, nobody is looking: the analysis is
+ * skipped until the next one. The editor asks every frame (~60/s) while the
+ * Tuner or Main page is up, so this is ~30 missed frames -- long enough that
+ * a stalled UI frame or a refused read never pauses a tuner in use. */
+#define WATCH_TIMEOUT_SAMPLES (MOVE_SAMPLE_RATE / 2)     /* 0.5 s */
+
 /* The Mute Output fade, either way. */
 #define MUTE_RAMP_SAMPLES (MOVE_SAMPLE_RATE / 100)       /* 10 ms */
 
@@ -145,6 +156,7 @@ typedef struct {
     int   hold_left;  /* samples the reading is held for without a new one */
     float level_db;   /* input peak, with the meter's fall */
     int   stale_reads;
+    int   unwatched;  /* samples since the last reading request, capped */
 } tuner_t;
 
 /* ----------------------------------------------------------------
@@ -471,8 +483,11 @@ static int put(char *buf, int len, const char *s) {
     return n;
 }
 
-/* Counts reading requests since the last block; see READING_STALE_READS. */
+/* A reading request: someone is looking, so analysis runs (see
+ * WATCH_TIMEOUT_SAMPLES). Also counts requests since the last block; see
+ * READING_STALE_READS. */
 static void check_stale(tuner_t *t) {
+    t->unwatched = 0;
     if (++t->stale_reads > READING_STALE_READS) {
         t->stale_reads = READING_STALE_READS + 1;   /* no wrap */
         clear_reading(t);
@@ -510,6 +525,7 @@ static void *tuner_create(const char *module_dir, const char *config_json) {
     if (!t) return NULL;
     clear_reading(t);
     t->level_db = LEVEL_FLOOR_DB;
+    t->unwatched = WATCH_TIMEOUT_SAMPLES;   /* asleep until first looked at */
     set_mute(t, 0);
     return t;
 }
@@ -524,8 +540,20 @@ static void tuner_process(void *instance, int16_t *audio, int frames) {
     t->primed = 1;
     t->stale_reads = 0;
 
-    capture_block(t, audio, frames);   /* the input, before any muting */
-    analysis_step(t);
+    /* Always captured, before any muting: ~one add per sample, and it keeps
+     * the window full of current audio so a reading is back within one
+     * analysis cycle (~12 ms) of someone looking again. */
+    capture_block(t, audio, frames);
+    if (t->unwatched < WATCH_TIMEOUT_SAMPLES) {
+        t->unwatched += frames;
+        analysis_step(t);
+    } else if (t->phase != 0 || t->midi >= 0 || t->level_db > LEVEL_FLOOR_DB) {
+        /* Nobody looking: drop the half-done cycle and the old reading, so
+         * the next look starts fresh instead of showing a stale note. */
+        t->phase = 0;
+        clear_reading(t);
+        t->level_db = LEVEL_FLOOR_DB;
+    }
     apply_output_gain(t, audio, frames);
 }
 
