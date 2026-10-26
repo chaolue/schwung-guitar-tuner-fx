@@ -1,15 +1,39 @@
 {
-    "id": "guitar-tuner",
-    "name": "Guitar Tuner",
-    "version": "0.3.0",
-    "min_host_version": "0.9.8",
-    "description": "Chromatic tuner for guitar (and any other instrument). Nearest note and cents deviation on the OLED; big letter glyph on the pad grid. Uses the Move's mic or 3.5mm line-in.",
-    "author": "Schwung",
-    "hidden": false,
-    "component_type": "tool",
-    "tool_config": {
-        "interactive": true,
-        "skip_file_browser": true,
-        "overtake": true
+  "id": "guitar-tuner-fx",
+  "name": "Guitar Tuner FX",
+  "abbrev": "TUNER",
+  "version": "0.1.0",
+  "min_host_version": "1.6.2",
+  "description": "Chromatic tuner as an audio FX: put it in a chain after Line In (or anything else) and read the nearest note, cents and a needle in the chain editor. Audio passes through untouched; Mute Output silences it for private tuning.",
+  "author": "chaolue",
+  "license": "MIT",
+  "dsp": "guitar-tuner-fx.so",
+  "api_version": 2,
+  "component_type": "audio_fx",
+  "capabilities": {
+    "chainable": true,
+    "component_type": "audio_fx",
+    "canvas_script": "canvas.js",
+    "chain_params": [
+      { "key": "mute", "name": "Mute Output", "short_name": "Mute", "type": "enum", "options": ["Off", "On"], "default": 0, "viz": { "kind": "switch" } },
+      { "key": "notation", "name": "Accidentals", "short_name": "Acc", "type": "enum", "options": ["Sharps", "Flats"], "short_options": ["SHP", "FLT"], "default": 0 },
+      { "key": "tuner", "name": "Tuner", "short_name": "Note", "type": "float", "min": -50.0, "max": 50.0, "access": "read", "live": true, "viz": { "kind": "custom:tuner" } },
+      { "key": "level", "name": "Input Level", "short_name": "In", "type": "float", "min": -60.0, "max": 0.0, "unit": "dB", "access": "read" },
+      { "key": "display", "name": "Tuner", "type": "canvas", "canvas_script": "canvas.js", "as_page": true, "page_first": true, "show_value": false, "extra_keys": ["level"] }
+    ],
+    "ui_hierarchy": {
+      "levels": {
+        "root": {
+          "name": "Tuner",
+          "knobs": ["mute", "notation", "tuner"],
+          "params": [
+            { "key": "mute" },
+            { "key": "notation" },
+            { "key": "tuner" },
+            { "key": "display" }
+          ]
+        }
+      }
     }
+  }
 }

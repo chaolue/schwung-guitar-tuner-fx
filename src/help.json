@@ -1,46 +1,108 @@
 {
-    "title": "Guitar Tuner",
-    "sections": [
-        {
-            "title": "Basics",
-            "lines": [
-                "A chromatic tuner that uses",
-                "the Move's built-in mic or",
-                "3.5mm line-in.",
-                "",
-                "Plug a guitar in or play an",
-                "acoustic note near the mic.",
-                "The screen shows the nearest",
-                "note and how many cents off",
-                "you are."
-            ]
-        },
-        {
-            "title": "Pads display",
-            "lines": [
-                "The pad grid lights up the",
-                "detected note as a letter",
-                "glyph, with a sharp or flat",
-                "symbol beside it for",
-                "accidentals.",
-                "",
-                "Color tells you how close",
-                "you are: green = in tune,",
-                "white = close, amber = off,",
-                "red = very off."
-            ]
-        },
-        {
-            "title": "Accidentals",
-            "lines": [
-                "Default notation is flats",
-                "(Db, Eb, Gb, Ab, Bb). To",
-                "switch to sharps, open",
-                "move.local:7700/config in a",
-                "browser and change",
-                "Accidental Notation under",
-                "the Tuner section."
-            ]
-        }
-    ]
+  "title": "Guitar Tuner FX",
+  "children": [
+    {
+      "title": "Overview",
+      "lines": [
+        "A chromatic tuner you",
+        "put in a Signal Chain.",
+        "It listens to the",
+        "audio reaching it and",
+        "shows the nearest",
+        "note and how many",
+        "cents off you are.",
+        "",
+        "Audio passes through",
+        "untouched, so it can",
+        "stay in your chain",
+        "while you play.",
+        "",
+        "Typical chain:",
+        " Line In > Tuner FX"
+      ]
+    },
+    {
+      "title": "Muting",
+      "lines": [
+        "Knob 1, Mute Output,",
+        "silences the audio",
+        "coming out of the",
+        "tuner, so you can",
+        "tune without the",
+        "room hearing you.",
+        "",
+        "The tuner keeps",
+        "listening while muted.",
+        "The Tuner page shows",
+        "MUTED until you turn",
+        "it back off.",
+        "",
+        "Switching fades over",
+        "10 ms, so it never",
+        "clicks."
+      ]
+    },
+    {
+      "title": "Tuner Page",
+      "lines": [
+        "The page you land on.",
+        "",
+        "Big letter: the note,",
+        "with its accidental",
+        "and octave beside it.",
+        "Right: cents and Hz.",
+        "",
+        "Bottom: the needle.",
+        "Left is flat, right",
+        "is sharp. Ticks mark",
+        "10 and 25 cents. In",
+        "tune (within 3 cents)",
+        "the centre fills in.",
+        "",
+        "Right edge: the input",
+        "level. If it moves but",
+        "no note shows, the",
+        "signal is too quiet",
+        "or not a clear pitch.",
+        "",
+        "A note stays up for",
+        "1.5 s after it fades."
+      ]
+    },
+    {
+      "title": "Knobs",
+      "lines": [
+        "K1 Mute: silence the",
+        " output (Off/On)",
+        "K2 Acc: show notes as",
+        " sharps (C#) or",
+        " flats (Db)",
+        "K3 Note: the reading,",
+        " also as a small",
+        " meter on the Main",
+        " page"
+      ]
+    },
+    {
+      "title": "Where To Put It",
+      "lines": [
+        "After Line In, to",
+        "tune a guitar on the",
+        "3.5mm input or the",
+        "Move's mic.",
+        "",
+        "On a Move track's",
+        "slot, to tune what",
+        "that track plays.",
+        "Needs Global Settings",
+        "> Audio > Move->",
+        "Schwung turned on.",
+        "",
+        "Range: about 70 Hz",
+        "to 1200 Hz, low E on",
+        "a guitar to well",
+        "above the top string."
+      ]
+    }
+  ]
 }

@@ -1,31 +1,28 @@
-#!/bin/bash
-# Install Guitar Tuner module to Move
-set -e
+#!/usr/bin/env bash
+# Deploy dist/guitar-tuner-fx/ to a Move running Schwung, for testing.
+#   scripts/install.sh                          (WiFi, move.local)
+#   MOVE_HOST=172.16.254.1 scripts/install.sh   (USB tether)
+#
+# For everyday installs use Schwung Manager (http://move.local:7700).
+set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-MODULE_ID="guitar-tuner"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+MODULE_ID="guitar-tuner-fx"
+HOST="${MOVE_HOST:-move.local}"
+DEST="/data/UserData/schwung/modules/audio_fx/${MODULE_ID}"
 
-cd "$REPO_ROOT"
+[ -d "$HERE/dist/${MODULE_ID}" ] || { echo "run scripts/build.sh first" >&2; exit 1; }
 
-if [ ! -d "dist/$MODULE_ID" ]; then
-    echo "Error: dist/$MODULE_ID not found. Run ./scripts/build.sh first."
-    exit 1
-fi
+echo "==> installing to ableton@${HOST}:${DEST}"
+ssh "ableton@${HOST}" "mkdir -p '${DEST}'"
+# Upload under a temporary name and rename, so a .so that is currently
+# loaded is replaced rather than overwritten in place (ETXTBSY).
+scp "$HERE/dist/${MODULE_ID}/${MODULE_ID}.so" "ableton@${HOST}:${DEST}/.${MODULE_ID}.so.new"
+ssh "ableton@${HOST}" "mv -f '${DEST}/.${MODULE_ID}.so.new' '${DEST}/${MODULE_ID}.so'"
+for f in module.json help.json canvas.js; do
+    scp "$HERE/dist/${MODULE_ID}/$f" "ableton@${HOST}:${DEST}/"
+done
+# Leave it writable so the web manager can update it later.
+ssh "ableton@${HOST}" "chmod -R a+rw '${DEST}'"
 
-echo "=== Installing Guitar Tuner Module ==="
-
-# Deploy to Move - tools subdirectory
-echo "Copying module to Move..."
-ssh ableton@move.local "mkdir -p /data/UserData/schwung/modules/tools/$MODULE_ID"
-scp -r dist/$MODULE_ID/* ableton@move.local:/data/UserData/schwung/modules/tools/$MODULE_ID/
-
-# Set permissions
-echo "Setting permissions..."
-ssh ableton@move.local "chmod -R a+rw /data/UserData/schwung/modules/tools/$MODULE_ID"
-
-echo ""
-echo "=== Install Complete ==="
-echo "Module installed to: /data/UserData/schwung/modules/tools/$MODULE_ID/"
-echo ""
-echo "Restart Schwung to load the new module."
+echo "==> installed. Remove and re-add the FX (or restart Schwung) to load a new build."

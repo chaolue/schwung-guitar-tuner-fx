@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  MODULE_ID: guitar-tuner-fx
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,10 +18,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Verify version match
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          MODULE_VERSION=$(grep '"version"' src/module.json | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+          MODULE_VERSION=$(jq -r .version src/module.json)
           if [ "$TAG_VERSION" != "$MODULE_VERSION" ]; then
             echo "ERROR: Tag version ($TAG_VERSION) does not match module.json version ($MODULE_VERSION)"
             echo "Please update src/module.json to version $TAG_VERSION before tagging."
@@ -26,15 +33,26 @@ jobs:
           fi
           echo "Version check passed: $TAG_VERSION"
 
+      - name: Offline tests
+        run: bash tests/run_tests.sh
+
       - name: Build
         run: ./scripts/build.sh
 
+      - name: Check the tarball
+        run: |
+          tar -tzf "dist/${MODULE_ID}-module.tar.gz" | sort > contents.txt
+          cat contents.txt
+          for f in "$MODULE_ID/$MODULE_ID.so" "$MODULE_ID/module.json" "$MODULE_ID/help.json" "$MODULE_ID/canvas.js"; do
+            grep -qx "$f" contents.txt || { echo "ERROR: $f missing from tarball"; exit 1; }
+          done
+          tar -xzf "dist/${MODULE_ID}-module.tar.gz" -O "$MODULE_ID/$MODULE_ID.so" > /tmp/fx.so
+          file /tmp/fx.so | grep -q 'ARM aarch64' || { echo "ERROR: $MODULE_ID.so is not aarch64"; exit 1; }
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: dist/guitar-tuner-module.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: dist/${{ env.MODULE_ID }}-module.tar.gz
 
       - name: Commit release.json
         run: |
@@ -48,7 +66,7 @@ jobs:
           cat > release.json << EOF
           {
             "version": "${VERSION}",
-            "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/guitar-tuner-module.tar.gz"
+            "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${MODULE_ID}-module.tar.gz"
           }
           EOF
 
